@@ -6,6 +6,7 @@
 #include "serial_protocol.h"
 #include "encoder.h"
 #include "keyboard_sender.h"
+#include "macro_handler.h"
 
 BleKeyboard bleKeyboard("Makropad ESP32", "Custom", 100);
 
@@ -23,6 +24,7 @@ void setup() {
         Serial.println("{\"cmd\":\"log\",\"level\":\"error\",\"msg\":\"Config init failed! Using defaults.\"}");
     }
 
+    initMacros();
     initMatrix();
 
     // Initialize the encoder
@@ -83,7 +85,22 @@ void loop() {
                             currentLayer = key;
                             sendLayerChange(currentLayer);
                         }
-                    } 
+                    }
+                    // A2. Makro
+                    else if (type == 2) {
+                        if (isPressed && key < macroCount && macros[key].stepCount > 0) {
+                            runMacro(key);
+                        }
+                    }
+                    // A3. Tekst
+                    else if (type == 4) {
+                        if (isPressed) {
+                            uint8_t idx = keycode & 0x00FF;
+                            if (idx < stringCount && strings[idx][0] != '\0' && bleKeyboard.isConnected()) {
+                                bleKeyboard.print(strings[idx]);
+                            }
+                        }
+                    }
                     // B. Rozszerzone Klawisze Multimedialne
                     else if (type == 1 && bleKeyboard.isConnected()) {
                         if (isPressed) {
@@ -128,6 +145,9 @@ void loop() {
 
     // --- 3. Process encoder ---
     processEncoder();
+
+    // --- 4. Process async macro execution ---
+    processMacro();
 
     processSerialProtocol();
 }

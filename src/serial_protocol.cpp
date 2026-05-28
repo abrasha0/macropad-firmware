@@ -1,9 +1,9 @@
 #include "serial_protocol.h"
 #include "config_manager.h"
+#include "macro_handler.h"
 #include <ArduinoJson.h>
 
 void initSerialProtocol() {
-    // Serial.begin() called in setup()
 }
 
 void processSerialProtocol() {
@@ -13,7 +13,6 @@ void processSerialProtocol() {
     line.trim();
     if (line.length() == 0) return;
 
-    // Ignoruj śmieci wysyłane przy nawiązywaniu połączenia przez terminal
     if (!line.startsWith("{")) return;
 
     JsonDocument doc;
@@ -42,8 +41,53 @@ void processSerialProtocol() {
             Serial.println("{\"cmd\":\"status\",\"status\":\"error\",\"msg\":\"Failed to save config.\"}");
         }
 
+    } else if (strcmp(cmd, "get_macros") == 0) {
+        JsonDocument resp;
+        resp["cmd"] = "macros";
+        JsonArray arr = resp["data"].to<JsonArray>();
+        for (uint8_t i = 0; i < macroCount; i++) {
+            JsonObject m = arr.add<JsonObject>();
+            m["name"] = macros[i].name;
+            JsonArray steps = m["steps"].to<JsonArray>();
+            for (uint8_t s = 0; s < macros[i].stepCount; s++) {
+                JsonObject step = steps.add<JsonObject>();
+                step["keycode"] = macros[i].steps[s].keycode;
+                step["delay"] = macros[i].steps[s].delayMs;
+            }
+        }
+        JsonArray strArr = resp["strings"].to<JsonArray>();
+        for (uint8_t i = 0; i < stringCount; i++) {
+            strArr.add(strings[i]);
+        }
+        serializeJson(resp, Serial);
+        Serial.println();
+
+    } else if (strcmp(cmd, "set_macros") == 0) {
+        JsonDocument dataDoc;
+        JsonVariant data = doc["data"];
+        if (data.is<JsonArray>()) {
+            dataDoc["macros"] = data;
+        } else if (data.is<JsonObject>()) {
+            dataDoc["macros"] = data["macros"];
+            dataDoc["strings"] = data["strings"];
+        }
+        loadMacros(dataDoc);
+        if (saveKeymap()) {
+            Serial.println("{\"cmd\":\"status\",\"status\":\"success\",\"msg\":\"Macros saved.\"}");
+        } else {
+            Serial.println("{\"cmd\":\"status\",\"status\":\"error\",\"msg\":\"Failed to save macros.\"}");
+        }
+
+    } else if (strcmp(cmd, "run_macro") == 0) {
+        uint8_t idx = doc["index"] | 0;
+        if (idx < macroCount && macros[idx].stepCount > 0) {
+            runMacro(idx);
+            Serial.println("{\"cmd\":\"status\",\"status\":\"success\",\"msg\":\"Macro started.\"}");
+        } else {
+            Serial.println("{\"cmd\":\"status\",\"status\":\"error\",\"msg\":\"Invalid macro index.\"}");
+        }
+
     } else if (strcmp(cmd, "get_layer") == 0) {
-        // Respond with current active layer
         sendLayerChange(currentLayer);
 
     } else if (strcmp(cmd, "set_layer") == 0) {
@@ -59,7 +103,6 @@ void processSerialProtocol() {
     }
 }
 
-// Sends both press and release events — WebUI can precisely track state
 void sendKeyState(uint8_t row, uint8_t col, bool isPressed) {
     Serial.printf("{\"cmd\":\"key_state\",\"row\":%d,\"col\":%d,\"isPressed\":%s}\n",
                   row, col, isPressed ? "true" : "false");
@@ -67,4 +110,9 @@ void sendKeyState(uint8_t row, uint8_t col, bool isPressed) {
 
 void sendLayerChange(uint8_t layer) {
     Serial.printf("{\"cmd\":\"layer_change\",\"layer\":%d}\n", layer);
+}
+
+void sendMacroProgress(uint8_t index, uint8_t step, uint8_t total) {
+    Serial.printf("{\"cmd\":\"macro_progress\",\"index\":%d,\"step\":%d,\"total\":%d}\n",
+                  index, step, total);
 }

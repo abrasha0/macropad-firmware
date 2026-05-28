@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
+#include "macro_handler.h"
 
 #define NUM_LAYERS 5
 #define NUM_ROWS 4
