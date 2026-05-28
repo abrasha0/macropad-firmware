@@ -29,7 +29,7 @@ W pełni funkcjonalny, bezprzewodowy makropad (klawiatura 4x4 + enkoder obrotowy
 | **Matryca**   | Kolumna 3         | GPIO 26   | `INPUT_PULLUP` | j.w.                                 |
 | **Enkoder**   | Kanał A (CLK)     | GPIO 27   | `INPUT_PULLUP` | Wymaga obsługi przerwań (Interrupts) |
 | **Enkoder**   | Kanał B (DT)      | GPIO 14   | `INPUT_PULLUP` | Wymaga obsługi przerwań (Interrupts) |
-| **Enkoder**   | Przycisk (SW)     | GPIO 13   | `INPUT_PULLUP` | -                                    |
+| **Enkoder**   | Przycisk (SW)     | GPIO 12   | `INPUT_PULLUP` | Pin D12 na płytce                   |
 | **Zasilanie** | Masa matrycy/enk. | GND       | -              | Wspólna masa                         |
 
 ### Zasady Projektowe (Hardware)
