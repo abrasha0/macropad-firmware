@@ -12,6 +12,11 @@
 extern uint16_t keymap[NUM_LAYERS][NUM_ROWS][NUM_COLS];
 extern uint8_t currentLayer;
 
+// Encoder actions per layer
+extern uint16_t encoder_left[NUM_LAYERS];
+extern uint16_t encoder_right[NUM_LAYERS];
+extern uint16_t encoder_button[NUM_LAYERS];
+
 bool initConfig();
 bool loadKeymap();
 bool saveKeymap();

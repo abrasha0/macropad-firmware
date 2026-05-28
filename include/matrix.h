@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-#define DEBOUNCE_DELAY 10
+#define DEBOUNCE_DELAY 20
 
 void initMatrix();
 bool scanMatrix(); // Returns true if state changed

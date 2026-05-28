@@ -4,6 +4,8 @@
 #include "config_manager.h"
 #include "matrix.h"
 #include "serial_protocol.h"
+#include "encoder.h"
+#include "keyboard_sender.h"
 
 BleKeyboard bleKeyboard("Makropad ESP32", "Custom", 100);
 
@@ -23,6 +25,9 @@ void setup() {
 
     initMatrix();
 
+    // Initialize the encoder
+    initEncoder();
+
     Serial.println("{\"cmd\":\"log\",\"level\":\"info\",\"msg\":\"Starting BLE Keyboard...\"}");
     bleKeyboard.begin();
 
@@ -35,17 +40,20 @@ void setup() {
 }
 
 void loop() {
-    if (scanMatrix()) {
+    bool matrixChanged = scanMatrix();
+
+    if (matrixChanged) {
         // --- 1. Sprzętowy skrót zmiany profilu (Górny lewy + Górny prawy) ---
         static bool layerComboProcessed = false;
-        if (currentState[0][0] && currentState[0][3]) {
+        bool comboActive = currentState[0][0] && currentState[0][3];
+        if (comboActive) {
             if (!layerComboProcessed) {
                 currentLayer = (currentLayer + 1) % NUM_LAYERS;
                 sendLayerChange(currentLayer);
                 layerComboProcessed = true;
             }
-            previousState[0][0] = currentState[0][0];
-            previousState[0][3] = currentState[0][3];
+            // NIE nadpisujemy previousState — dzięki temu standardowa pętla
+            // dalej poprawnie wykrywa zwalnianie tych klawiszy.
         } else {
             layerComboProcessed = false;
         }
@@ -53,6 +61,9 @@ void loop() {
         // --- 2. Standardowe przetwarzanie matrycy ---
         for (int r = 0; r < NUM_ROWS; r++) {
             for (int c = 0; c < NUM_COLS; c++) {
+                // Gdy aktywna kombinacja warstw — pomiń te dwa klawisze
+                if (comboActive && r == 0 && (c == 0 || c == 3)) continue;
+
                 if (currentState[r][c] != previousState[r][c]) {
                     uint16_t keycode = keymap[currentLayer][r][c];
                     bool isPressed = currentState[r][c];
@@ -114,5 +125,9 @@ void loop() {
             }
         }
     }
+
+    // --- 3. Process encoder ---
+    processEncoder();
+
     processSerialProtocol();
 }
