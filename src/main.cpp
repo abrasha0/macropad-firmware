@@ -14,6 +14,17 @@ BleKeyboard bleKeyboard("Makropad ESP32", "Custom", 100);
 extern bool currentState[NUM_ROWS][NUM_COLS];
 extern bool previousState[NUM_ROWS][NUM_COLS];
 
+// Przechowuje oryginalny keycode z chwili naciśnięcia dla każdej pozycji.
+// Dzięki temu zwolnienie klawisza zawsze używa tego samego keycode, nawet jeśli
+// między pressem a release nastąpiła zmiana warstwy (combo / type 3).
+static uint16_t pressedKeycode[NUM_ROWS][NUM_COLS] = {0};
+
+static void clearPressedKeys() {
+    for (int r = 0; r < NUM_ROWS; r++)
+        for (int c = 0; c < NUM_COLS; c++)
+            pressedKeycode[r][c] = 0;
+}
+
 void setup() {
     Serial.begin(115200);
     delay(1000);
@@ -50,6 +61,8 @@ void loop() {
         bool comboActive = currentState[0][0] && currentState[0][3];
         if (comboActive) {
             if (!layerComboProcessed) {
+                bleKeyboard.releaseAll();
+                clearPressedKeys();
                 currentLayer = (currentLayer + 1) % NUM_LAYERS;
                 sendLayerChange(currentLayer);
                 layerComboProcessed = true;
@@ -63,17 +76,30 @@ void loop() {
         // --- 2. Standardowe przetwarzanie matrycy ---
         for (int r = 0; r < NUM_ROWS; r++) {
             for (int c = 0; c < NUM_COLS; c++) {
-                // Gdy aktywna kombinacja warstw — pomiń te dwa klawisze
-                if (comboActive && r == 0 && (c == 0 || c == 3)) continue;
-
                 if (currentState[r][c] != previousState[r][c]) {
-                    uint16_t keycode = keymap[currentLayer][r][c];
                     bool isPressed = currentState[r][c];
+                    uint16_t keycode;
+
+                    if (isPressed) {
+                        keycode = keymap[currentLayer][r][c];
+                    } else {
+                        // Użyj keycode zapamiętanego w momencie naciśnięcia — nawet
+                        // jeśli warstwa zmieniła się między pressem a release.
+                        keycode = pressedKeycode[r][c];
+                        pressedKeycode[r][c] = 0;
+                    }
 
                     // Zawsze wysyłaj stan klawisza do WebUI, nawet jeśli pusty
                     sendKeyState(r, c, isPressed);
 
                     if (keycode == 0) continue;
+
+                    // Gdy aktywna kombinacja warstw — pomiń te dwa klawisze
+                    if (comboActive && r == 0 && (c == 0 || c == 3)) continue;
+
+                    if (isPressed) {
+                        pressedKeycode[r][c] = keycode;
+                    }
 
                     uint8_t type = (keycode & 0xF000) >> 12;
                     uint8_t mods = (keycode & 0x0F00) >> 8;
@@ -82,6 +108,8 @@ void loop() {
                     // A. Zmiana warstw przypisana do konkretnego klawisza (np. L1)
                     if (type == 3) {
                         if (isPressed && key < NUM_LAYERS) {
+                            bleKeyboard.releaseAll();
+                            clearPressedKeys();
                             currentLayer = key;
                             sendLayerChange(currentLayer);
                         }
