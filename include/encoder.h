@@ -5,8 +5,8 @@
 #include "config_manager.h" // For NUM_LAYERS and currentLayer
 
 // Encoder pins (must match those defined in README.md)
-#define ENCODER_CLK_PIN 27   // GPIO27
-#define ENCODER_DT_PIN  14   // GPIO14
+#define ENCODER_CLK_PIN 14   // GPIO27
+#define ENCODER_DT_PIN  27   // GPIO14
 #define ENCODER_SW_PIN  12   // GPIO12
 
 // Encoder action type (same as keycode in keymap)

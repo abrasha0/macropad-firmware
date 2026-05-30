@@ -2,7 +2,7 @@
 
 ## Opis Projektu
 
-W pełni funkcjonalny, bezprzewodowy makropad (klawiatura 4x4 + enkoder obrotowy) oparty na mikrokontrolerze ESP32. Urządzenie działa jako klawiatura Bluetooth (BLE HID) i jest konfigurowane przez innowacyjny interfejs webowy hostowany na zewnętrznym serwerze (Docker/Dockge), komunikujący się z urządzeniem za pomocą **Web Serial API** po kablu USB.
+W pełni funkcjonalny, bezprzewodowy makropad (klawiatura 4x4 + enkoder obrotowy) oparty na mikrokontrolerze ESP32. Urządzenie działa jako klawiatura Bluetooth (BLE HID) i jest konfigurowane przez interfejs webowy hostowany na zewnętrznym serwerze (Docker/Dockge), komunikujący się z urządzeniem za pomocą **Web Serial API** po kablu USB.
 
 ---
 
@@ -27,8 +27,8 @@ W pełni funkcjonalny, bezprzewodowy makropad (klawiatura 4x4 + enkoder obrotowy
 | **Matryca**   | Kolumna 1         | GPIO 33   | `INPUT_PULLUP` | j.w.                                 |
 | **Matryca**   | Kolumna 2         | GPIO 25   | `INPUT_PULLUP` | j.w.                                 |
 | **Matryca**   | Kolumna 3         | GPIO 26   | `INPUT_PULLUP` | j.w.                                 |
-| **Enkoder**   | Kanał A (CLK)     | GPIO 27   | `INPUT_PULLUP` | Wymaga obsługi przerwań (Interrupts) |
-| **Enkoder**   | Kanał B (DT)      | GPIO 14   | `INPUT_PULLUP` | Wymaga obsługi przerwań (Interrupts) |
+| **Enkoder**   | Kanał A (CLK)     | GPIO 14   | `INPUT_PULLUP` | Wymaga obsługi przerwań (Interrupts) |
+| **Enkoder**   | Kanał B (DT)      | GPIO 27   | `INPUT_PULLUP` | Wymaga obsługi przerwań (Interrupts) |
 | **Enkoder**   | Przycisk (SW)     | GPIO 12   | `INPUT_PULLUP` | Pin D12 na płytce                    |
 | **Zasilanie** | Masa matrycy/enk. | GND       | -              | Wspólna masa                         |
 
