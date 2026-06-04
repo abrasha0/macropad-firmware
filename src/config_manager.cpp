@@ -1,55 +1,127 @@
 #include "config_manager.h"
 
-uint16_t keymap[NUM_LAYERS][NUM_ROWS][NUM_COLS] = {0};
+KeyBinding keymap[NUM_LAYERS][NUM_ROWS][NUM_COLS] = {};
 uint8_t currentLayer = 0;
 
-// Encoder actions per layer
-uint16_t encoder_left[NUM_LAYERS] = {0};
-uint16_t encoder_right[NUM_LAYERS] = {0};
-uint16_t encoder_button[NUM_LAYERS] = {0};
+KeyBinding encoder_left[NUM_LAYERS] = {};
+KeyBinding encoder_right[NUM_LAYERS] = {};
+KeyBinding encoder_button[NUM_LAYERS] = {};
 
 const char* configFilePath = "/config.json";
 
+static void parseKeyBinding(JsonVariant src, KeyBinding& dst) {
+    dst = {};
+    if (!src.is<JsonObject>()) return;
+
+    JsonObject obj = src.as<JsonObject>();
+    uint8_t t = obj["t"] | BIND_NONE;
+    dst.type = t;
+
+    switch (t) {
+        case BIND_KEY:
+            dst.mods = obj["m"] | 0;
+            dst.key  = obj["k"] | 0;
+            break;
+        case BIND_MEDIA:
+        case BIND_MACRO:
+        case BIND_LAYER:
+            dst.key = obj["k"] | 0;
+            break;
+        case BIND_STRING: {
+            const char* s = obj["s"] | "";
+            strncpy(dst.text, s, MAX_KEY_TEXT - 1);
+            dst.text[MAX_KEY_TEXT - 1] = '\0';
+            break;
+        }
+    }
+}
+
+static void serializeKeyBinding(JsonVariant dst, const KeyBinding& src) {
+    if (src.type == BIND_NONE && src.text[0] == '\0' && src.mods == 0 && src.key == 0) {
+        dst.set(0);
+        return;
+    }
+    JsonObject obj = dst.to<JsonObject>();
+    obj["t"] = src.type;
+
+    switch (src.type) {
+        case BIND_KEY:
+            if (src.mods) obj["m"] = src.mods;
+            if (src.key)  obj["k"] = src.key;
+            break;
+        case BIND_STRING:
+            obj["s"] = src.text;
+            break;
+        default:
+            if (src.key) obj["k"] = src.key;
+            break;
+    }
+}
+
 static void setDefaultProfiles() {
     // --- Layer 0: Numpad ---
-    // KP_7(0x5F)  KP_8(0x60)  KP_9(0x61)  KP_DIVIDE(0x54)
-    // KP_4(0x5C)  KP_5(0x5D)  KP_6(0x5E)  KP_MULTIPLY(0x55)
-    // KP_1(0x59)  KP_2(0x5A)  KP_3(0x5B)  KP_SUBTRACT(0x56)
-    // KP_0(0x62)  KP_DOT(0x63) KP_ENTER(0x58) KP_ADD(0x57)
-    keymap[0][0][0] = 0x005F; keymap[0][0][1] = 0x0060; keymap[0][0][2] = 0x0061; keymap[0][0][3] = 0x0054;
-    keymap[0][1][0] = 0x005C; keymap[0][1][1] = 0x005D; keymap[0][1][2] = 0x005E; keymap[0][1][3] = 0x0055;
-    keymap[0][2][0] = 0x0059; keymap[0][2][1] = 0x005A; keymap[0][2][2] = 0x005B; keymap[0][2][3] = 0x0056;
-    keymap[0][3][0] = 0x0062; keymap[0][3][1] = 0x0063; keymap[0][3][2] = 0x0058; keymap[0][3][3] = 0x0057;
+    keymap[0][0][0] = {BIND_KEY, 0, 0x5F, ""};
+    keymap[0][0][1] = {BIND_KEY, 0, 0x60, ""};
+    keymap[0][0][2] = {BIND_KEY, 0, 0x61, ""};
+    keymap[0][0][3] = {BIND_KEY, 0, 0x54, ""};
+    keymap[0][1][0] = {BIND_KEY, 0, 0x5C, ""};
+    keymap[0][1][1] = {BIND_KEY, 0, 0x5D, ""};
+    keymap[0][1][2] = {BIND_KEY, 0, 0x5E, ""};
+    keymap[0][1][3] = {BIND_KEY, 0, 0x55, ""};
+    keymap[0][2][0] = {BIND_KEY, 0, 0x59, ""};
+    keymap[0][2][1] = {BIND_KEY, 0, 0x5A, ""};
+    keymap[0][2][2] = {BIND_KEY, 0, 0x5B, ""};
+    keymap[0][2][3] = {BIND_KEY, 0, 0x56, ""};
+    keymap[0][3][0] = {BIND_KEY, 0, 0x62, ""};
+    keymap[0][3][1] = {BIND_KEY, 0, 0x63, ""};
+    keymap[0][3][2] = {BIND_KEY, 0, 0x58, ""};
+    keymap[0][3][3] = {BIND_KEY, 0, 0x57, ""};
 
     // --- Layer 1: NFS Underground 2 ---
-    // Up(0x52)  Down(0x51)  Left(0x50)  Right(0x4F)
-    // Shift(0x0200)  Ctrl(0x0100)  Space(0x2C)  Enter(0x28)
-    // W(0x1A)  S(0x16)  A(0x04)  D(0x07)
-    // 1(0x1E)  2(0x1F)  3(0x20)  Esc(0x29)
-    keymap[1][0][0] = 0x0052; keymap[1][0][1] = 0x0051; keymap[1][0][2] = 0x0050; keymap[1][0][3] = 0x004F;
-    keymap[1][1][0] = 0x0200; keymap[1][1][1] = 0x0100; keymap[1][1][2] = 0x002C; keymap[1][1][3] = 0x0028;
-    keymap[1][2][0] = 0x001A; keymap[1][2][1] = 0x0016; keymap[1][2][2] = 0x0004; keymap[1][2][3] = 0x0007;
-    keymap[1][3][0] = 0x001E; keymap[1][3][1] = 0x001F; keymap[1][3][2] = 0x0020; keymap[1][3][3] = 0x0029;
+    keymap[1][0][0] = {BIND_KEY, 0, 0x52, ""};
+    keymap[1][0][1] = {BIND_KEY, 0, 0x51, ""};
+    keymap[1][0][2] = {BIND_KEY, 0, 0x50, ""};
+    keymap[1][0][3] = {BIND_KEY, 0, 0x4F, ""};
+    keymap[1][1][0] = {BIND_KEY, 2, 0x00, ""};
+    keymap[1][1][1] = {BIND_KEY, 1, 0x00, ""};
+    keymap[1][1][2] = {BIND_KEY, 0, 0x2C, ""};
+    keymap[1][1][3] = {BIND_KEY, 0, 0x28, ""};
+    keymap[1][2][0] = {BIND_KEY, 0, 0x1A, ""};
+    keymap[1][2][1] = {BIND_KEY, 0, 0x16, ""};
+    keymap[1][2][2] = {BIND_KEY, 0, 0x04, ""};
+    keymap[1][2][3] = {BIND_KEY, 0, 0x07, ""};
+    keymap[1][3][0] = {BIND_KEY, 0, 0x1E, ""};
+    keymap[1][3][1] = {BIND_KEY, 0, 0x1F, ""};
+    keymap[1][3][2] = {BIND_KEY, 0, 0x20, ""};
+    keymap[1][3][3] = {BIND_KEY, 0, 0x29, ""};
 
     // --- Layer 2: CS:GO / CS2 ---
-    // 1(0x1E)  2(0x1F)  3(0x20)  4(0x21)
-    // 5(0x22)  B(0x05)  G(0x0A)  R(0x15)
-    // Z(0x1D)  X(0x1B)  C(0x06)  V(0x19)
-    // Q(0x14)  E(0x08)  F(0x09)  Ctrl walk(0x0100)
-    keymap[2][0][0] = 0x001E; keymap[2][0][1] = 0x001F; keymap[2][0][2] = 0x0020; keymap[2][0][3] = 0x0021;
-    keymap[2][1][0] = 0x0022; keymap[2][1][1] = 0x0005; keymap[2][1][2] = 0x000A; keymap[2][1][3] = 0x0015;
-    keymap[2][2][0] = 0x001D; keymap[2][2][1] = 0x001B; keymap[2][2][2] = 0x0006; keymap[2][2][3] = 0x0019;
-    keymap[2][3][0] = 0x0014; keymap[2][3][1] = 0x0008; keymap[2][3][2] = 0x0009; keymap[2][3][3] = 0x0100;
+    keymap[2][0][0] = {BIND_KEY, 0, 0x1E, ""};
+    keymap[2][0][1] = {BIND_KEY, 0, 0x1F, ""};
+    keymap[2][0][2] = {BIND_KEY, 0, 0x20, ""};
+    keymap[2][0][3] = {BIND_KEY, 0, 0x21, ""};
+    keymap[2][1][0] = {BIND_KEY, 0, 0x22, ""};
+    keymap[2][1][1] = {BIND_KEY, 0, 0x05, ""};
+    keymap[2][1][2] = {BIND_KEY, 0, 0x0A, ""};
+    keymap[2][1][3] = {BIND_KEY, 0, 0x15, ""};
+    keymap[2][2][0] = {BIND_KEY, 0, 0x1D, ""};
+    keymap[2][2][1] = {BIND_KEY, 0, 0x1B, ""};
+    keymap[2][2][2] = {BIND_KEY, 0, 0x06, ""};
+    keymap[2][2][3] = {BIND_KEY, 0, 0x19, ""};
+    keymap[2][3][0] = {BIND_KEY, 0, 0x14, ""};
+    keymap[2][3][1] = {BIND_KEY, 0, 0x08, ""};
+    keymap[2][3][2] = {BIND_KEY, 0, 0x09, ""};
+    keymap[2][3][3] = {BIND_KEY, 1, 0x00, ""};
 
     // --- Layer 3: Custom 1 (empty) ---
     for (int r = 0; r < NUM_ROWS; r++)
         for (int c = 0; c < NUM_COLS; c++)
-            keymap[3][r][c] = 0;
+            keymap[3][r][c] = {};
 
     // --- Layer 4: Custom 2 (empty) ---
     for (int r = 0; r < NUM_ROWS; r++)
         for (int c = 0; c < NUM_COLS; c++)
-            keymap[4][r][c] = 0;
+            keymap[4][r][c] = {};
 }
 
 bool initConfig() {
@@ -63,14 +135,10 @@ bool initConfig() {
 
         setDefaultProfiles();
 
-        // Set default encoder actions for every layer:
-        //   Left turn  (CCW): VOLUME_UP    (0x1001)
-        //   Right turn (CW):  VOLUME_DOWN  (0x1002)
-        //   Button press:      PLAY_PAUSE  (0x1004)
         for (int l = 0; l < NUM_LAYERS; l++) {
-            encoder_left[l]   = 0x1001;
-            encoder_right[l]  = 0x1002;
-            encoder_button[l] = 0x1004;
+            encoder_left[l]   = {BIND_MEDIA, 0, 1, ""};
+            encoder_right[l]  = {BIND_MEDIA, 0, 2, ""};
+            encoder_button[l] = {BIND_MEDIA, 0, 4, ""};
         }
 
         saveKeymap();
@@ -84,11 +152,11 @@ bool loadKeymap() {
         Serial.println("Failed to open config file for reading");
         return false;
     }
-    
+
     size_t size = configFile.size();
     std::unique_ptr<char[]> buf(new char[size]);
     configFile.readBytes(buf.get(), size);
-    
+
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, buf.get());
     if (error) {
@@ -96,32 +164,26 @@ bool loadKeymap() {
         configFile.close();
         return false;
     }
-    
+
     JsonArray layers = doc["layers"];
-    for(int l = 0; l < NUM_LAYERS && l < layers.size(); l++) {
+    for (int l = 0; l < NUM_LAYERS && l < layers.size(); l++) {
         JsonArray rows = layers[l];
-        for(int r = 0; r < NUM_ROWS && r < rows.size(); r++) {
+        for (int r = 0; r < NUM_ROWS && r < rows.size(); r++) {
             JsonArray cols = rows[r];
-            for(int c = 0; c < NUM_COLS && c < cols.size(); c++) {
-                keymap[l][r][c] = cols[c].as<uint16_t>();
+            for (int c = 0; c < NUM_COLS && c < cols.size(); c++) {
+                parseKeyBinding(cols[c], keymap[l][r][c]);
             }
         }
     }
-    
-    // Handle encoder array
+
     JsonArray encoderArray = doc["encoder"];
     bool needsSave = false;
 
-    // Default encoder actions for every layer:
-    //   Left turn  (CCW): VOLUME_UP    (0x1001)
-    //   Right turn (CW):  VOLUME_DOWN  (0x1002)
-    //   Button press:      PLAY_PAUSE  (0x1004)
-    const uint16_t LEFT_DEF   = 0x1001;
-    const uint16_t RIGHT_DEF  = 0x1002;
-    const uint16_t BUTTON_DEF = 0x1004;
+    static const KeyBinding LEFT_DEF   = {BIND_MEDIA, 0, 1, ""};
+    static const KeyBinding RIGHT_DEF  = {BIND_MEDIA, 0, 2, ""};
+    static const KeyBinding BUTTON_DEF = {BIND_MEDIA, 0, 4, ""};
 
     if (encoderArray.isNull()) {
-        // No encoder array in the config, set defaults for all layers and save
         for (int l = 0; l < NUM_LAYERS; l++) {
             encoder_left[l]   = LEFT_DEF;
             encoder_right[l]  = RIGHT_DEF;
@@ -129,7 +191,6 @@ bool loadKeymap() {
         }
         needsSave = true;
     } else {
-        // Load the encoder array for each layer that exists
         for (int l = 0; l < NUM_LAYERS; l++) {
             if (l < encoderArray.size()) {
                 JsonObject encoderObj = encoderArray[l];
@@ -138,25 +199,23 @@ bool loadKeymap() {
                     encoder_right[l]  = RIGHT_DEF;
                     encoder_button[l] = BUTTON_DEF;
                 } else {
-                    encoder_left[l]   = encoderObj["left"] | 0;
-                    encoder_right[l]  = encoderObj["right"] | 0;
-                    encoder_button[l] = encoderObj["button"] | 0;
+                    parseKeyBinding(encoderObj["left"],   encoder_left[l]);
+                    parseKeyBinding(encoderObj["right"],  encoder_right[l]);
+                    parseKeyBinding(encoderObj["button"], encoder_button[l]);
                 }
             } else {
-                // This layer doesn't have an entry in the encoder array, use defaults
                 encoder_left[l]   = LEFT_DEF;
                 encoder_right[l]  = RIGHT_DEF;
                 encoder_button[l] = BUTTON_DEF;
             }
         }
-        // If the encoderArray has more than NUM_LAYERS, we ignore the extra.
     }
-    
-    // Sanity check: if all encoder actions are 0 (e.g. from a previous buggy version),
-    // re-initialize with defaults and save.
+
     bool allZero = true;
     for (int l = 0; l < NUM_LAYERS && allZero; l++) {
-        if (encoder_left[l] != 0 || encoder_right[l] != 0 || encoder_button[l] != 0) {
+        if (encoder_left[l].type != BIND_NONE ||
+            encoder_right[l].type != BIND_NONE ||
+            encoder_button[l].type != BIND_NONE) {
             allZero = false;
         }
     }
@@ -168,8 +227,7 @@ bool loadKeymap() {
         }
         needsSave = true;
     }
-    
-    // Load macros and strings
+
     loadMacros(doc);
 
     configFile.close();
@@ -184,27 +242,25 @@ bool loadKeymap() {
 bool saveKeymap() {
     JsonDocument doc;
     JsonArray layers = doc["layers"].to<JsonArray>();
-    
-    for(int l = 0; l < NUM_LAYERS; l++) {
+
+    for (int l = 0; l < NUM_LAYERS; l++) {
         JsonArray rowArray = layers.add<JsonArray>();
-        for(int r = 0; r < NUM_ROWS; r++) {
+        for (int r = 0; r < NUM_ROWS; r++) {
             JsonArray colArray = rowArray.add<JsonArray>();
-            for(int c = 0; c < NUM_COLS; c++) {
-                colArray.add(keymap[l][r][c]);
+            for (int c = 0; c < NUM_COLS; c++) {
+                serializeKeyBinding(colArray.add<JsonVariant>(), keymap[l][r][c]);
             }
         }
     }
-    
-    // Add encoder array
+
     JsonArray encoderArray = doc["encoder"].to<JsonArray>();
-    for(int l = 0; l < NUM_LAYERS; l++) {
+    for (int l = 0; l < NUM_LAYERS; l++) {
         JsonObject encoderObj = encoderArray.add<JsonObject>();
-        encoderObj["left"]   = encoder_left[l];
-        encoderObj["right"]  = encoder_right[l];
-        encoderObj["button"] = encoder_button[l];
+        serializeKeyBinding(encoderObj["left"].to<JsonVariant>(),   encoder_left[l]);
+        serializeKeyBinding(encoderObj["right"].to<JsonVariant>(),  encoder_right[l]);
+        serializeKeyBinding(encoderObj["button"].to<JsonVariant>(), encoder_button[l]);
     }
 
-    // Save macros and strings
     saveMacros(doc);
 
     File configFile = LittleFS.open(configFilePath, "w");
@@ -212,7 +268,7 @@ bool saveKeymap() {
         Serial.println("Failed to open config file for writing");
         return false;
     }
-    
+
     serializeJson(doc, configFile);
     configFile.close();
     return true;
@@ -221,35 +277,37 @@ bool saveKeymap() {
 bool processConfigJson(const String& jsonString) {
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, jsonString);
-    if(error){
+    if (error) {
         return false;
     }
-    
+
     JsonArray layers = doc["layers"];
-    for(int l = 0; l < NUM_LAYERS && l < layers.size(); l++) {
+    if (layers.isNull() || layers.size() == 0) {
+        Serial.println("{\"cmd\":\"log\",\"level\":\"error\",\"msg\":\"set_config: missing or empty 'layers' array\"}");
+        return false;
+    }
+    for (int l = 0; l < NUM_LAYERS && l < layers.size(); l++) {
         JsonArray rows = layers[l];
-        for(int r = 0; r < NUM_ROWS && r < rows.size(); r++) {
+        for (int r = 0; r < NUM_ROWS && r < rows.size(); r++) {
             JsonArray cols = rows[r];
-            for(int c = 0; c < NUM_COLS && c < cols.size(); c++) {
-                keymap[l][r][c] = cols[c].as<uint16_t>();
+            for (int c = 0; c < NUM_COLS && c < cols.size(); c++) {
+                parseKeyBinding(cols[c], keymap[l][r][c]);
             }
         }
     }
 
-    // Load encoder actions
     JsonArray encoderArray = doc["encoder"];
     if (!encoderArray.isNull()) {
         for (int l = 0; l < NUM_LAYERS && l < encoderArray.size(); l++) {
             JsonObject encoderObj = encoderArray[l];
             if (!encoderObj.isNull()) {
-                encoder_left[l]   = encoderObj["left"] | encoder_left[l];
-                encoder_right[l]  = encoderObj["right"] | encoder_right[l];
-                encoder_button[l] = encoderObj["button"] | encoder_button[l];
+                parseKeyBinding(encoderObj["left"],   encoder_left[l]);
+                parseKeyBinding(encoderObj["right"],  encoder_right[l]);
+                parseKeyBinding(encoderObj["button"], encoder_button[l]);
             }
         }
     }
 
-    // Load macros and strings
     loadMacros(doc);
 
     return saveKeymap();

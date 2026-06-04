@@ -4,19 +4,19 @@
 #include <Arduino.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
+#include "binding.h"
 #include "macro_handler.h"
 
 #define NUM_LAYERS 5
 #define NUM_ROWS 4
 #define NUM_COLS 4
 
-extern uint16_t keymap[NUM_LAYERS][NUM_ROWS][NUM_COLS];
+extern KeyBinding keymap[NUM_LAYERS][NUM_ROWS][NUM_COLS];
 extern uint8_t currentLayer;
 
-// Encoder actions per layer
-extern uint16_t encoder_left[NUM_LAYERS];
-extern uint16_t encoder_right[NUM_LAYERS];
-extern uint16_t encoder_button[NUM_LAYERS];
+extern KeyBinding encoder_left[NUM_LAYERS];
+extern KeyBinding encoder_right[NUM_LAYERS];
+extern KeyBinding encoder_button[NUM_LAYERS];
 
 bool initConfig();
 bool loadKeymap();

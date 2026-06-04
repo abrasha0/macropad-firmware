@@ -5,8 +5,6 @@
 
 Macro macros[MAX_MACROS];
 uint8_t macroCount = 0;
-char strings[MAX_STRINGS][MAX_STRING_LEN];
-uint8_t stringCount = 0;
 
 static bool macroRunning = false;
 static uint8_t activeMacroIndex = 0;
@@ -39,24 +37,21 @@ bool loadMacros(JsonDocument& doc) {
                 JsonObject stepObj = steps[s];
                 if (stepObj.isNull()) continue;
 
-                macros[macroCount].steps[stepIdx].keycode = stepObj["keycode"] | 0;
-                macros[macroCount].steps[stepIdx].delayMs = stepObj["delay"] | 0;
+                const char* text = stepObj["text"] | "";
+                if (text[0] != '\0') {
+                    macros[macroCount].steps[stepIdx].keycode = 0;
+                    macros[macroCount].steps[stepIdx].delayMs = stepObj["delay"] | 0;
+                    strncpy(macros[macroCount].steps[stepIdx].text, text, MAX_MACRO_TEXT - 1);
+                    macros[macroCount].steps[stepIdx].text[MAX_MACRO_TEXT - 1] = '\0';
+                } else {
+                    macros[macroCount].steps[stepIdx].keycode = stepObj["keycode"] | 0;
+                    macros[macroCount].steps[stepIdx].delayMs = stepObj["delay"] | 0;
+                    macros[macroCount].steps[stepIdx].text[0] = '\0';
+                }
                 stepIdx++;
             }
             macros[macroCount].stepCount = stepIdx;
             macroCount++;
-        }
-    }
-
-    JsonArray stringsArray = doc["strings"];
-    stringCount = 0;
-
-    if (!stringsArray.isNull()) {
-        for (uint8_t i = 0; i < MAX_STRINGS && i < stringsArray.size(); i++) {
-            const char* str = stringsArray[i] | "";
-            strncpy(strings[stringCount], str, MAX_STRING_LEN - 1);
-            strings[stringCount][MAX_STRING_LEN - 1] = '\0';
-            stringCount++;
         }
     }
 
@@ -72,14 +67,14 @@ void saveMacros(JsonDocument& doc) {
         JsonArray steps = macroObj["steps"].to<JsonArray>();
         for (uint8_t s = 0; s < macros[i].stepCount; s++) {
             JsonObject stepObj = steps.add<JsonObject>();
-            stepObj["keycode"] = macros[i].steps[s].keycode;
-            stepObj["delay"] = macros[i].steps[s].delayMs;
+            if (macros[i].steps[s].text[0] != '\0') {
+                stepObj["text"] = macros[i].steps[s].text;
+                stepObj["delay"] = macros[i].steps[s].delayMs;
+            } else {
+                stepObj["keycode"] = macros[i].steps[s].keycode;
+                stepObj["delay"] = macros[i].steps[s].delayMs;
+            }
         }
-    }
-
-    JsonArray stringsArray = doc["strings"].to<JsonArray>();
-    for (uint8_t i = 0; i < stringCount; i++) {
-        stringsArray.add(strings[i]);
     }
 }
 
@@ -92,6 +87,11 @@ void runMacro(uint8_t index) {
     if (macros[index].stepCount == 0) {
         Serial.println("{\"cmd\":\"log\",\"level\":\"warn\",\"msg\":\"runMacro: empty macro\"}");
         return;
+    }
+
+    if (macroRunning) {
+        Serial.println("{\"cmd\":\"log\",\"level\":\"warn\",\"msg\":\"runMacro: preempting running macro\"}");
+        bleKeyboard.releaseAll();
     }
 
     activeMacroIndex = index;
@@ -116,7 +116,8 @@ void processMacro() {
 
     Macro& m = macros[activeMacroIndex];
 
-    if (millis() - stepStartTime >= currentDelay) {
+    unsigned long now = millis();
+    if ((now - stepStartTime >= currentDelay) || (now < stepStartTime)) {
         if (activeMacroStep >= m.stepCount) {
             macroRunning = false;
             sendMacroProgress(activeMacroIndex, m.stepCount, m.stepCount);
@@ -125,7 +126,11 @@ void processMacro() {
 
         MacroStep& step = m.steps[activeMacroStep];
 
-        if (step.keycode != 0) {
+        if (step.text[0] != '\0') {
+            if (bleKeyboard.isConnected()) {
+                bleKeyboard.print(step.text);
+            }
+        } else if (step.keycode != 0) {
             sendKeycode(step.keycode);
         }
 

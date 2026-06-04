@@ -55,18 +55,18 @@ Firmware został maksymalnie odchudzony z obsługi sieci (brak serwera WWW i Wi-
 
 ### Protokół Komunikacji Serial (JSON) — Kontrakt
 
-Komunikacja odbywa się przez USB Serial (115200 baud). Każda wiadomość to pojedynczy obiekt JSON zakończony znakiem nowej linii `\n`. Nie ma odpowiedzi bez komendy — ESP wysyła eventy wyłącznie jako reakcję na komendę lub zmianę stanu fizycznego urządzenia.
+Komunikacja odbywa się przez USB Serial (115200 baud). Każda wiadomość to pojedynczy obiekt JSON zakończony znakiem nowej linii `\n`. Nie ma odpowiedzi bez komendy — ESP wysyła eventy wyłącznie jako reakcję na komendę lub zmianę stanu fizycznego urządzenia. Maksymalna długość linii to 4096 bajtów — dłuższe są odrzucane.
 
 #### Komendy Host (WebUI) → ESP
 
 | Komenda      | Format                              | Opis                                                                                              |
 | ------------ | ----------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `get_config` | `{"cmd":"get_config"}`              | Pobiera pełną konfigurację (layers, encoder, macros, strings)                                     |
-| `set_config` | `{"cmd":"set_config","data":{...}}` | Zapisuje pełną konfigurację. `data` zawiera `layers`, `encoder`, opcjonalnie `macros` i `strings` |
+| `get_config` | `{"cmd":"get_config"}`              | Pobiera pełną konfigurację (layers, encoder, macros)                                              |
+| `set_config` | `{"cmd":"set_config","data":{...}}` | Zapisuje pełną konfigurację. `data` musi zawierać `layers` i `encoder`. Opcjonalnie `macros`      |
 | `get_layer`  | `{"cmd":"get_layer"}`               | Pobiera aktualny numer warstwy                                                                    |
-| `set_layer`  | `{"cmd":"set_layer","layer":N}`     | Wymusza warstwę N (0-4)                                                                           |
-| `get_macros` | `{"cmd":"get_macros"}`              | Pobiera tablicę makr i stringów                                                                   |
-| `set_macros` | `{"cmd":"set_macros","data":{...}}` | Zapisuje makra i stringi. `data` może być tablicą makr lub obiektem z `macros` i `strings`        |
+| `set_layer`  | `{"cmd":"set_layer","layer":N}`     | Wymusza warstwę N (0-4). Gdy N poza zakresem → `status` z `"error"`                               |
+| `get_macros` | `{"cmd":"get_macros"}`              | Pobiera tablicę makr                                                                             |
+| `set_macros` | `{"cmd":"set_macros","data":...}`   | Zapisuje makra. `data` = tablica makr LUB obiekt `{"macros":...}`. **Brak `macros` → error.**     |
 | `run_macro`  | `{"cmd":"run_macro","index":N}`     | Testuje wykonanie makra o indeksie N z WebUI                                                      |
 
 #### Eventy ESP → Host (WebUI)
@@ -77,7 +77,7 @@ Komunikacja odbywa się przez USB Serial (115200 baud). Każda wiadomość to po
 | `status`         | `{"cmd":"status","status":"success/error","msg":"..."}`      | Odpowiedź na `set_config`, `set_macros`, `set_layer`, `run_macro`                        |
 | `key_state`      | `{"cmd":"key_state","row":R,"col":C,"isPressed":true/false}` | Żywe powiadomienie o zmianie stanu klawisza (naciśnięcie/zwolnienie)                     |
 | `layer_change`   | `{"cmd":"layer_change","layer":N}`                           | Zmiana aktywnej warstwy (przez hardware combo, klawisz warstwy lub WebUI)                |
-| `macros`         | `{"cmd":"macros","data":[...],"strings":[...]}`              | Odpowiedź na `get_macros`                                                                |
+| `macros`         | `{"cmd":"macros","data":[...]}`                               | Odpowiedź na `get_macros`                                                                |
 | `macro_progress` | `{"cmd":"macro_progress","index":N,"step":S,"total":T}`      | Postęp wykonania makra — wysyłany po każdym kroku. Gdy `step == total`, makro zakończone |
 | `log`            | `{"cmd":"log","level":"info/warn/error/debug","msg":"..."}`  | Logi diagnostyczne                                                                       |
 
@@ -88,10 +88,10 @@ Komunikacja odbywa się przez USB Serial (115200 baud). Każda wiadomość to po
 {"cmd":"get_config"}
 
 // ESP → WebUI: odpowiedź
-{"cmd":"config","data":{"layers":[[...]],"encoder":[{...}],"macros":[...],"strings":[...]}}
+{"cmd":"config","data":{"layers":[[...]],"encoder":[{...}],"macros":[...]}}
 
 // WebUI → ESP: zapis konfiguracji
-{"cmd":"set_config","data":{"layers":[[...]],"encoder":[{...}],"macros":[...],"strings":[...]}}
+{"cmd":"set_config","data":{"layers":[[...]],"encoder":[{...}],"macros":[...]}}
 
 // ESP → WebUI: potwierdzenie
 {"cmd":"status","status":"success","msg":"Config saved."}
@@ -100,7 +100,7 @@ Komunikacja odbywa się przez USB Serial (115200 baud). Każda wiadomość to po
 {"cmd":"get_macros"}
 
 // ESP → WebUI: lista makr
-{"cmd":"macros","data":[{"name":"Macro 1","steps":[{"keycode":1302,"delay":50}]}],"strings":["Hello"]}
+{"cmd":"macros","data":[{"name":"Macro 1","steps":[{"keycode":1302,"delay":50},{"text":"Hello","delay":100}]}]}
 
 // WebUI → ESP: test makra
 {"cmd":"run_macro","index":0}
@@ -114,16 +114,24 @@ Komunikacja odbywa się przez USB Serial (115200 baud). Każda wiadomość to po
 
 ### Struktura pliku `config.json`
 
-Plik konfiguracyjny zawiera tablicę `layers` (5 warstw po 4×4 klawiszy, każdy jako 16-bitowa wartość), tablicę `encoder` z konfiguracją enkodera dla każdej warstwy, oraz opcjonalne tablice `macros` i `strings`:
+Plik konfiguracyjny zawiera tablicę `layers` (5 warstw po 4×4 klawiszy, każdy jako obiekt), tablicę `encoder` z konfiguracją enkodera dla każdej warstwy, oraz opcjonalną tablicę `macros`:
 
 ```json
 {
   "layers": [
-    [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]],
+    [
+      [
+        {"t": 0, "k": 95},
+        {"t": 5, "s": "Hello World"},
+        {"t": 2, "k": 0},
+        {"t": 3, "k": 1}
+      ],
+      ...
+    ],
     ...
   ],
   "encoder": [
-    {"left": 4097, "right": 4098, "button": 4100},
+    {"left": {"t": 1, "k": 1}, "right": {"t": 1, "k": 2}, "button": {"t": 1, "k": 4}},
     ...
   ],
   "macros": [
@@ -131,34 +139,38 @@ Plik konfiguracyjny zawiera tablicę `layers` (5 warstw po 4×4 klawiszy, każdy
       "name": "Nazwa makra",
       "steps": [
         {"keycode": 1302, "delay": 50},
-        {"keycode": 0, "delay": 100}
+        {"text": "Hello", "delay": 100}
       ]
     }
-  ],
-  "strings": [
-    "Hello World"
   ]
 }
 ```
 
-Format kodowania 16-bitowej wartości klawisza:
+Format obiektu bindingu klawisza:
 
-- **bity 15-12 (type):** `0` = standardowy klawisz, `1` = multimedialny, `2` = makro (key = indeks makra), `3` = zmiana warstwy, `4` = tekst (key = indeks stringa)
-- **bity 11-8 (mods):** bit0=Ctrl, bit1=Shift, bit2=Alt, bit3=GUI
-- **bity 7-0 (key):** kod klawisza HID / media index / indeks makra / numer warstwy / indeks stringa
+| Pole | Opis                                                 |
+| :--- | :--------------------------------------------------- |
+| `t`  | Typ akcji: `0`=brak, `1`=klawisz, `2`=media, `3`=makro, `4`=warstwa, `5`=string |
+| `m`  | Modyfikatory (bitfield): bit0=Ctrl, bit1=Shift, bit2=Alt, bit3=GUI (tylko dla `t=1`) |
+| `k`  | Kod HID klawisza / media index / indeks makra / numer warstwy |
+| `s`  | String inline (tylko dla `t=5`, max 64 znaki)        |
+
+Wartość `0` w tablicy oznacza brak akcji (BIND_NONE).
 
 #### Struktura makra
 
 Każde makro to obiekt z polem `name` (ciąg znaków) i tablicą `steps`. Każdy krok to:
 
-- `keycode` — 16-bitowa wartość klawisza do wysłania (typy 0-4). Gdy `0`, krok tylko czeka.
+- `keycode` — 16-bitowa wartość klawisza do wysłania (typy 0-3). Gdy `0`, krok tylko czeka.
+- `text` — alternatywnie, string do wysłania przez BLE (gdy obecne, `keycode` jest ignorowany).
 - `delay` — opóźnienie w ms po wykonaniu kroku.
 
 Makra są wykonywane asynchronicznie (non-blocking) — skanowanie matrycy i enkoder działają w tle.
+Maksymalnie 16 makr, 32 kroków każde, string max 64 znaki.
 
-#### Struktura stringów
+#### Typ STRING (type=5)
 
-Tablica ciągów znaków (UTF-8), które mogą być wysłane przez BLE jako tekst. Indeks stringa jest używany w typie 4 (`type=4`).
+Każdy klawisz matrycy lub enkodera może mieć przypisany string inline. String jest przechowywany bezpośrednio w bindingu klawisza, nie w globalnej liście. Maksymalna długość: 64 znaki.
 
 ---
 

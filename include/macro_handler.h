@@ -4,14 +4,14 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
-#define MAX_MACROS 32
-#define MAX_MACRO_STEPS 64
-#define MAX_STRINGS 16
-#define MAX_STRING_LEN 128
+#define MAX_MACROS 16
+#define MAX_MACRO_STEPS 32
+#define MAX_MACRO_TEXT 64
 
 struct MacroStep {
     uint16_t keycode;
     uint16_t delayMs;
+    char text[MAX_MACRO_TEXT];
 };
 
 struct Macro {
@@ -22,8 +22,6 @@ struct Macro {
 
 extern Macro macros[MAX_MACROS];
 extern uint8_t macroCount;
-extern char strings[MAX_STRINGS][MAX_STRING_LEN];
-extern uint8_t stringCount;
 
 void initMacros();
 bool loadMacros(JsonDocument& doc);

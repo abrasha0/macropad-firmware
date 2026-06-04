@@ -1,12 +1,11 @@
 #include "keyboard_sender.h"
 #include "macro_handler.h"
+#include "serial_protocol.h"
 
 extern BleKeyboard bleKeyboard;
 
 void sendKeycode(uint16_t keycode) {
-    if (keycode == 0) {
-        return;
-    }
+    if (keycode == 0) return;
 
     uint8_t type = (keycode & 0xF000) >> 12;
     uint8_t mods = (keycode & 0x0F00) >> 8;
@@ -38,7 +37,6 @@ void sendKeycode(uint16_t keycode) {
         }
 
     } else if (type == 2) {
-        // Macro trigger: run macro by index
         if (key < macroCount) {
             char buf[96];
             snprintf(buf, sizeof(buf),
@@ -48,13 +46,11 @@ void sendKeycode(uint16_t keycode) {
             runMacro(key);
         }
 
-    } else if (type == 4) {
-        // Text string: type out via BLE
-        uint8_t idx = keycode & 0x00FF;
-        if (idx < stringCount && strings[idx][0] != '\0') {
-            if (!bleKeyboard.isConnected()) return;
-            bleKeyboard.print(strings[idx]);
+    } else if (type == 3) {
+        if (key < NUM_LAYERS) {
+            bleKeyboard.releaseAll();
+            currentLayer = key;
+            sendLayerChange(currentLayer);
         }
     }
-    // type 3 (layer change) is handled directly in main.cpp loop
 }

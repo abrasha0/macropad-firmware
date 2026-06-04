@@ -6,10 +6,16 @@
 void initSerialProtocol() {
 }
 
+#define SERIAL_MAX_LINE 4096
+
 void processSerialProtocol() {
     if (!Serial.available()) return;
 
     String line = Serial.readStringUntil('\n');
+    if (line.length() >= SERIAL_MAX_LINE) {
+        Serial.println("{\"cmd\":\"log\",\"level\":\"error\",\"msg\":\"Line too long, discarded.\"}");
+        return;
+    }
     line.trim();
     if (line.length() == 0) return;
 
@@ -51,25 +57,33 @@ void processSerialProtocol() {
             JsonArray steps = m["steps"].to<JsonArray>();
             for (uint8_t s = 0; s < macros[i].stepCount; s++) {
                 JsonObject step = steps.add<JsonObject>();
-                step["keycode"] = macros[i].steps[s].keycode;
-                step["delay"] = macros[i].steps[s].delayMs;
+                if (macros[i].steps[s].text[0] != '\0') {
+                    step["text"] = macros[i].steps[s].text;
+                    step["delay"] = macros[i].steps[s].delayMs;
+                } else {
+                    step["keycode"] = macros[i].steps[s].keycode;
+                    step["delay"] = macros[i].steps[s].delayMs;
+                }
             }
-        }
-        JsonArray strArr = resp["strings"].to<JsonArray>();
-        for (uint8_t i = 0; i < stringCount; i++) {
-            strArr.add(strings[i]);
         }
         serializeJson(resp, Serial);
         Serial.println();
 
     } else if (strcmp(cmd, "set_macros") == 0) {
-        JsonDocument dataDoc;
         JsonVariant data = doc["data"];
+        if (!data.is<JsonArray>() && !data.is<JsonObject>()) {
+            Serial.println("{\"cmd\":\"status\",\"status\":\"error\",\"msg\":\"Invalid data: expected array or object.\"}");
+            return;
+        }
+        JsonDocument dataDoc;
         if (data.is<JsonArray>()) {
             dataDoc["macros"] = data;
-        } else if (data.is<JsonObject>()) {
+        } else {
+            if (data["macros"].isNull()) {
+                Serial.println("{\"cmd\":\"status\",\"status\":\"error\",\"msg\":\"Missing 'macros' field in data object.\"}");
+                return;
+            }
             dataDoc["macros"] = data["macros"];
-            dataDoc["strings"] = data["strings"];
         }
         loadMacros(dataDoc);
         if (saveKeymap()) {
@@ -96,6 +110,8 @@ void processSerialProtocol() {
             currentLayer = newLayer;
             sendLayerChange(currentLayer);
             Serial.println("{\"cmd\":\"status\",\"status\":\"success\",\"msg\":\"Zmieniono warstwę z WebUI.\"}");
+        } else {
+            Serial.println("{\"cmd\":\"status\",\"status\":\"error\",\"msg\":\"Invalid layer index.\"}");
         }
 
     } else {
