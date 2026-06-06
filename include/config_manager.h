@@ -11,6 +11,10 @@
 #define NUM_ROWS 4
 #define NUM_COLS 4
 
+#define CONFIG_PATH "/config.json"
+#define CONFIG_TEMP_PATH "/config.tmp"
+#define CONFIG_BAK_PATH "/config.bak"
+
 extern KeyBinding keymap[NUM_LAYERS][NUM_ROWS][NUM_COLS];
 extern uint8_t currentLayer;
 
@@ -19,7 +23,7 @@ extern KeyBinding encoder_right[NUM_LAYERS];
 extern KeyBinding encoder_button[NUM_LAYERS];
 
 bool initConfig();
-bool loadKeymap();
+bool loadKeymap(const char* path = CONFIG_PATH);
 bool saveKeymap();
 bool processConfigJson(const String& json);
 String getConfigJson();
